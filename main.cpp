@@ -83,6 +83,18 @@ void intrin_float_unaligned_copy(const float* src, float* dest, int len) {
     }
 }
 
+void intrin_float_aligned_fast_div(const float* src1, const float* src2, float* dest, int len) {
+    for (int i = 0; i < len-8; i+= 8) {
+        _mm256_stream_ps(&dest[i], _mm256_div_ps(_mm256_load_ps(&src1[i]), _mm256_load_ps(&src2[i])));
+    }
+}
+
+void intrin_float_unaligned_divop(const float* src1, const float* src2, float* dest, int len) {
+    for (int i = 0; i < len-8; i+= 8) {
+        _mm256_storeu_ps(&dest[i], _mm256_mul_ps(_mm256_loadu_ps(&src1[i]), _mm256_rcp_ps(_mm256_loadu_ps(&src2[i]))));
+    }
+}
+
 int main() {
     const int len = pow(10, 8);
     const double nsts = 1.e9;
@@ -90,6 +102,7 @@ int main() {
     double* src;
     double* dest;
     float* srcf;
+    float* src2f;
     float* destf;
     double dt;
 
@@ -130,6 +143,7 @@ int main() {
     ////
 
 
+
     /** Float Testing **/
     srcf = static_cast<float *>(aligned_alloc(32, len *sizeof(float)));
     destf = static_cast<float *>(aligned_alloc(32, len *sizeof(float)));
@@ -160,6 +174,24 @@ int main() {
 
     dt = mean_time_func(iters, intrin_float_unaligned_copy, srcf, destf, len);
     std::cout << "Unaligned Store/Load of " << len << " floats: " << dt/nsts << "s." << std::endl;
+    std::cout << len*nsts/dt << " floats/s" << std::endl;
+
+    free(srcf);
+    free(destf);
+    ////
+
+
+
+    /** FLOP Testing **/
+    srcf = static_cast<float *>(aligned_alloc(32, len *sizeof(float)));
+    src2f = static_cast<float *>(aligned_alloc(32, len *sizeof(float)));
+    destf = static_cast<float *>(aligned_alloc(32, len *sizeof(float)));
+    dt = mean_time_func(iters, intrin_float_aligned_fast_div, srcf, src2f, destf, len);
+    std::cout << "Divison With Intrinsic  " << len << " floats: " << dt/nsts << "s." << std::endl;
+    std::cout << len*nsts/dt << " floats/s" << std::endl;
+
+    dt = mean_time_func(iters, intrin_float_unaligned_divop, srcf, src2f, destf, len);
+    std::cout << "Division With Reciprocal Intrinsic  " << len << " floats: " << dt/nsts << "s." << std::endl;
     std::cout << len*nsts/dt << " floats/s" << std::endl;
 
     return 0;
